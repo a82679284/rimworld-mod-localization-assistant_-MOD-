@@ -1,0 +1,12 @@
+# 生产依赖
+lxml>=5.1.0
+requests>=2.31.0
+fuzzywuzzy>=0.18.0
+python-Levenshtein>=0.25.0
+beautifulsoup4>=4.12.0
+
+# 开发依赖 (可选,用于测试和代码格式化)
+# pytest>=8.0.0
+# pytest-cov>=4.1.0
+# black>=24.0.0
+# flake8>=7.0.0

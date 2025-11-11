@@ -1,0 +1,32 @@
+{
+  "default_provider": "baidu",
+  "providers": {
+    "baidu": {
+      "enabled": false,
+      "api_key": "",
+      "secret_key": "",
+      "qps_limit": 10
+    },
+    "youdao": {
+      "enabled": false,
+      "app_key": "",
+      "app_secret": ""
+    },
+    "google": {
+      "enabled": false,
+      "api_key": ""
+    },
+    "deepl": {
+      "enabled": false,
+      "api_key": ""
+    },
+    "ollama": {
+      "enabled": true,
+      "model": "qwen2.5:7b",
+      "base_url": "http://localhost:11434"
+    }
+  },
+  "rimworld_path": "",
+  "auto_save_interval": 30,
+  "page_size": 100
+}

@@ -1,0 +1,7 @@
+term_en,term_zh,category,priority,note
+silver,银,material,10,游戏货币
+steel,钢,material,10,基础建筑材料
+wood,木材,material,10,基础建筑材料
+colonist,殖民者,character,10,玩家控制的角色
+pawn,小人,character,10,游戏中的角色
+raid,袭击,event,10,敌对事件
