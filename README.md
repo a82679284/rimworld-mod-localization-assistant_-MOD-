@@ -16,7 +16,6 @@
 - ✅ **官方翻译对照**: 从游戏目录读取官方翻译作为参考
 - ✅ **自动保存**: 定时自动保存翻译进度
 - ✅ **会话管理**: 支持中断后继续翻译
-- ✅ **CLI 命令行界面**: 完整的命令行操作界面,支持所有高级功能
 - ✅ **GUI 图形界面**: 基于 Tkinter 的友好图形界面
 
 **v1.1 新增功能**:
@@ -64,9 +63,6 @@
 ```powershell
 # 启动 GUI 模式
 .\start-gui.ps1
-
-# 启动 CLI 模式
-.\start-cli.ps1
 ```
 
 #### 方式二: 手动启动
@@ -75,18 +71,13 @@
 # 激活虚拟环境 (Windows)
 .\venv\Scripts\activate
 
-# 运行 GUI 模式 (推荐)
-python src/main.py --gui
-
-# 运行 CLI 模式
-python src/main.py --cli
+# 运行 GUI 模式
+python src/main.py
 ```
 
 ## 📖 使用说明
 
-### GUI 模式 (推荐新用户)
-
-#### 基本操作流程:
+### 基本操作流程:
 
 1. **选择 MOD** 🆕
    - 点击"浏览"按钮
@@ -119,42 +110,6 @@ python src/main.py --cli
    - 点击"导出翻译"生成 ChineseSimplified 翻译文件
    - 文件会保存到 MOD 的 Languages 目录下
 
-### CLI 模式 (适合高级用户)
-
-#### 主菜单选项:
-
-1. **提取 MOD 可翻译内容**
-   - 输入 MOD 目录路径
-   - 系统自动提取并保存到数据库
-
-2. **批量翻译 (使用 AI)**
-   - 选择 MOD 名称
-   - 选择翻译引擎 (DeepSeek/百度/Ollama)
-   - 自动翻译所有待翻译条目
-
-3. **查看翻译进度**
-   - 输入 MOD 名称查看详细进度
-   - 留空查看所有 MOD 的进度概览
-
-4. **导出已翻译内容**
-   - 输入 MOD 名称和目录路径
-   - 生成 ChineseSimplified 翻译文件
-
-5. **术语库管理**
-   - 导入 CSV 格式术语库
-   - 搜索术语
-   - 查看统计信息
-
-6. **翻译记忆管理**
-   - 查询历史翻译
-   - 添加翻译记录
-   - 查看统计和清理旧记录
-
-7. **会话管理**
-   - 查看活动会话
-   - 恢复未完成的翻译
-   - 删除会话
-
 ### 术语库 CSV 格式
 
 ```csv
@@ -169,7 +124,7 @@ colonist,殖民者,character,10,玩家控制的角色
 ```
 rimworld-mod-localization-assistant/
 ├── src/                      # 源代码
-│   ├── ui/                   # 界面层 (CLI + GUI)
+│   ├── ui/                   # 界面层 (GUI)
 │   ├── services/             # 服务层 (业务协调)
 │   ├── logic/                # 业务逻辑层 (提取器+翻译器+批量翻译)
 │   ├── data/                 # 数据访问层 (Repositories)
@@ -189,7 +144,6 @@ rimworld-mod-localization-assistant/
 ├── requirements.txt          # 依赖清单
 ├── deploy.ps1                # 一键部署脚本
 ├── start-gui.ps1             # 快速启动 GUI
-├── start-cli.ps1             # 快速启动 CLI
 └── README.md                 # 本文件
 ```
 
@@ -286,10 +240,9 @@ rimworld-mod-localization-assistant/
 - ✅ 改进的配置界面和帮助文档
 
 ### v1.0 (基础版本) ✅
-- ✅ 完善的 CLI 功能集成(批量翻译、翻译记忆、会话管理)
 - ✅ 完整的 GUI 图形界面
 - ✅ 自动保存和会话恢复
-- ✅ 所有高级功能在 GUI 和 CLI 中均可使用
+- ✅ 批量翻译、翻译记忆、会话管理功能
 
 ### v2.0 (未来计划)
 - ⏳ 支持从 DLL/C# 文件提取可翻译内容
@@ -321,7 +274,7 @@ rimworld-mod-localization-assistant/
   - 🆕 改进配置界面: 更友好的帮助文档和引导
 
 - **v1.0 (2024)**: 基础功能完整实现
-  - ✅ 完整的CLI和GUI界面
+  - ✅ 完整的 GUI 界面
   - ✅ 多翻译引擎支持
   - ✅ 翻译记忆和术语库
   - ✅ 自动保存和会话恢复
@@ -330,12 +283,12 @@ rimworld-mod-localization-assistant/
 - ✅ 阶段一: 基础设施搭建
 - ✅ 阶段二: Storage层和Service层实现
 - ✅ 阶段三: 高级功能(翻译记忆、批量翻译、官方对照、会话管理)
-- ✅ 阶段四: GUI界面开发和CLI功能集成
+- ✅ 阶段四: GUI界面开发
 - ✅ 阶段五: 用户体验优化 (v1.1)
 - ⏳ 阶段六: 测试覆盖和性能优化 (v1.2)
 
 **功能亮点**:
-- 🖥️ 双界面支持: CLI + GUI 任您选择
+- 🖥️ 友好的 GUI 图形界面
 - 🤖 AI 翻译集成: DeepSeek/百度/Ollama 多种引擎
 - 🧠 智能翻译记忆: 自动匹配历史翻译
 - 📚 术语库管理: 确保专有名词一致性,AI翻译自动参考 🆕

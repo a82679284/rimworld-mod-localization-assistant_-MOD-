@@ -764,8 +764,19 @@ class RimworldTranslatorGUI:
             self._update_progress()
             dialog.destroy()
 
+        def reset_and_close():
+            """重置为未翻译状态"""
+            if messagebox.askyesno("确认", "确定要重置此条目吗?\n\n译文将被清空,状态恢复为待翻译。"):
+                entry.translated_text = ""
+                entry.status = 'pending'
+                self.service.translation_repo.save(entry)
+                self._load_translations()
+                self._update_progress()
+                dialog.destroy()
+
         ttk.Button(button_frame, text="保存", command=save_and_close).pack(side=tk.LEFT, padx=5)
         ttk.Button(button_frame, text="跳过", command=skip_and_close).pack(side=tk.LEFT, padx=5)
+        ttk.Button(button_frame, text="重置", command=reset_and_close).pack(side=tk.LEFT, padx=5)
         ttk.Button(button_frame, text="取消", command=dialog.destroy).pack(side=tk.RIGHT, padx=5)
 
     def _batch_translate(self):
@@ -863,8 +874,8 @@ class RimworldTranslatorGUI:
 
                 self.status_var.set(f"正在使用 {provider_name} 批量翻译...")
 
-                # 执行翻译
-                result = self.batch_translator.batch_translate(
+                # 执行多线程翻译
+                result = self.batch_translator.batch_translate_concurrent(
                     entries,
                     provider_name=provider_name,
                     use_memory=True,
@@ -906,11 +917,13 @@ class RimworldTranslatorGUI:
 
     def _on_batch_translate_complete(self, result):
         """批量翻译完成回调"""
+        workers_info = f"线程数: {result.get('workers_used', 'N/A')}\n" if 'workers_used' in result else ""
         messagebox.showinfo(
             "翻译完成",
             f"成功: {result['success_count']}\n"
             f"失败: {result['failed_count']}\n"
-            f"来自翻译记忆: {result['memory_hit_count']}"
+            f"来自翻译记忆: {result['memory_hit_count']}\n"
+            f"{workers_info}"
         )
 
         self._load_translations()
