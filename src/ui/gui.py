@@ -13,6 +13,7 @@ from ..logic.batch_translator import BatchTranslatorLogic
 from ..logic.translation_memory import TranslationMemoryLogic
 from ..data.translation_memory_repository import TranslationMemoryRepository
 from ..data.session_repository import SessionRepository
+from ..data.mod_list_repository import ModListRepository
 from ..models.translation_entry import TranslationEntry
 from ..utils.config import Config
 from ..utils.auto_save import AutoSaveManager
@@ -34,6 +35,7 @@ class RimworldTranslatorGUI:
         self.memory_logic = TranslationMemoryLogic(self.memory_repo, self.service.glossary_repo)
         self.batch_translator = BatchTranslatorLogic(self.config, self.memory_logic)
         self.session_repo = SessionRepository(self.service.db)
+        self.mod_list_repo = ModListRepository(self.service.db)
 
         # 自动保存管理器
         auto_save_interval = self.config.get_translation_config().get('auto_save_interval', 30)
@@ -45,6 +47,7 @@ class RimworldTranslatorGUI:
         self.current_entries: List[TranslationEntry] = []
         self.current_page = 0
         self.page_size = 50
+        self.mod_root_path: Optional[str] = None  # MOD 管理根目录
 
         # 构建界面
         self._build_ui()
@@ -54,27 +57,89 @@ class RimworldTranslatorGUI:
 
     def _build_ui(self):
         """构建用户界面"""
-        # 主容器
-        main_container = ttk.Frame(self.root, padding="10")
-        main_container.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
+        # 主容器 - 使用 PanedWindow 实现左右分栏
+        main_paned = ttk.PanedWindow(self.root, orient=tk.HORIZONTAL)
+        main_paned.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
 
-        # 配置网格权重
-        self.root.columnconfigure(0, weight=1)
-        self.root.rowconfigure(0, weight=1)
-        main_container.columnconfigure(0, weight=1)
-        main_container.rowconfigure(2, weight=1)
+        # 右侧 MOD 列表侧边栏
+        self._build_mod_sidebar(main_paned)
+
+        # 左侧主内容区
+        main_content = ttk.Frame(main_paned)
+        main_paned.add(main_content, weight=4)
+
+        # 配置主内容区网格
+        main_content.columnconfigure(0, weight=1)
+        main_content.rowconfigure(2, weight=1)
 
         # 1. 顶部工具栏
-        self._build_toolbar(main_container)
+        self._build_toolbar(main_content)
 
         # 2. MOD 信息区
-        self._build_mod_info_section(main_container)
+        self._build_mod_info_section(main_content)
 
         # 3. 翻译表格区
-        self._build_translation_table(main_container)
+        self._build_translation_table(main_content)
 
         # 4. 底部状态栏和操作按钮
-        self._build_bottom_panel(main_container)
+        self._build_bottom_panel(main_content)
+
+    def _build_mod_sidebar(self, parent):
+        """构建 MOD 列表侧边栏"""
+        sidebar_frame = ttk.Frame(parent, width=250)
+        parent.add(sidebar_frame, weight=1)
+
+        # 标题和工具栏
+        sidebar_header = ttk.Frame(sidebar_frame)
+        sidebar_header.pack(fill=tk.X, padx=5, pady=5)
+
+        ttk.Label(
+            sidebar_header,
+            text="MOD 列表",
+            font=("", 11, "bold")
+        ).pack(side=tk.LEFT)
+
+        ttk.Button(
+            sidebar_header,
+            text="刷新",
+            width=6,
+            command=self._refresh_mod_list
+        ).pack(side=tk.RIGHT, padx=2)
+
+        ttk.Button(
+            sidebar_header,
+            text="清空",
+            width=6,
+            command=self._clear_mod_list
+        ).pack(side=tk.RIGHT, padx=2)
+
+        # MOD 列表
+        list_frame = ttk.Frame(sidebar_frame)
+        list_frame.pack(fill=tk.BOTH, expand=True, padx=5, pady=(0, 5))
+
+        # 创建 Listbox 和滚动条
+        scrollbar = ttk.Scrollbar(list_frame, orient=tk.VERTICAL)
+        self.mod_listbox = tk.Listbox(
+            list_frame,
+            yscrollcommand=scrollbar.set,
+            selectmode=tk.SINGLE,
+            activestyle='dotbox'
+        )
+        scrollbar.config(command=self.mod_listbox.yview)
+
+        self.mod_listbox.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+
+        # 绑定选择事件
+        self.mod_listbox.bind('<<ListboxSelect>>', self._on_mod_select)
+
+        # 右键菜单
+        self.mod_context_menu = tk.Menu(self.mod_listbox, tearoff=0)
+        self.mod_context_menu.add_command(label="移除", command=self._remove_selected_mod)
+        self.mod_listbox.bind("<Button-3>", self._show_mod_context_menu)
+
+        # 加载 MOD 列表
+        self._load_mod_list()
 
     def _build_toolbar(self, parent):
         """构建顶部工具栏"""
@@ -260,11 +325,15 @@ class RimworldTranslatorGUI:
 
             # 检测是否为MOD管理根目录 (包含多个MOD子目录)
             if self._is_mods_root_folder(folder_path):
+                # 保存根目录路径
+                self.mod_root_path = folder
                 # 显示MOD选择对话框
                 self._show_mod_selection_dialog(folder)
             else:
                 # 单个MOD,直接设置路径
                 self.mod_path_var.set(folder)
+                # 清空根路径 (因为这是单个MOD,不是从根目录选择的)
+                self.mod_root_path = None
 
     def _is_mods_root_folder(self, folder_path: Path) -> bool:
         """
@@ -359,6 +428,21 @@ class RimworldTranslatorGUI:
             try:
                 mods = self.service.scan_mods_folder(root_path)
 
+                # 保存所有扫描到的MOD到数据库
+                for mod_data in mods:
+                    mod_info = mod_data['info']
+                    try:
+                        self.mod_list_repo.add_mod(
+                            mod_name=mod_info.name,
+                            mod_path=str(mod_data['path']),
+                            root_path=root_path
+                        )
+                    except Exception as e:
+                        print(f"保存 MOD 失败 {mod_info.name}: {e}")
+
+                # 刷新侧边栏
+                self.root.after(0, self._load_mod_list)
+
                 def update_ui():
                     # 清除提示
                     for widget in dialog.winfo_children():
@@ -419,6 +503,18 @@ class RimworldTranslatorGUI:
             mod_info = result['mod_info']
             self.current_mod_name = mod_info.name
             self.current_mod_path = mod_path
+
+            # 添加到 MOD 列表
+            try:
+                self.mod_list_repo.add_mod(
+                    mod_name=mod_info.name,
+                    mod_path=mod_path,
+                    root_path=self.mod_root_path
+                )
+                # 刷新侧边栏
+                self._load_mod_list()
+            except Exception as e:
+                print(f"添加 MOD 到列表失败: {e}")
 
             messagebox.showinfo(
                 "提取完成",
@@ -1101,6 +1197,141 @@ class RimworldTranslatorGUI:
 
         # 运行主循环
         self.root.mainloop()
+
+    def _load_mod_list(self):
+        """加载 MOD 列表到侧边栏"""
+        self.mod_listbox.delete(0, tk.END)
+
+        try:
+            mods = self.mod_list_repo.get_all_mods()
+
+            for mod in mods:
+                # 获取翻译进度
+                try:
+                    stats = self.service.get_translation_progress(mod['mod_name'])
+                    total = stats['total']
+                    completed = stats['completed']
+                    progress = (completed / total * 100) if total > 0 else 0
+
+                    # 格式化显示
+                    display_text = f"{mod['mod_name'][:25]} ({progress:.0f}%)"
+
+                    # 根据进度设置颜色
+                    self.mod_listbox.insert(tk.END, display_text)
+
+                    # 设置颜色标识
+                    idx = self.mod_listbox.size() - 1
+                    if progress >= 100:
+                        self.mod_listbox.itemconfig(idx, {'fg': 'green'})
+                    elif progress > 0:
+                        self.mod_listbox.itemconfig(idx, {'fg': 'orange'})
+                    else:
+                        self.mod_listbox.itemconfig(idx, {'fg': 'red'})
+
+                except Exception:
+                    # 如果获取进度失败,只显示名称
+                    display_text = f"{mod['mod_name'][:25]}"
+                    self.mod_listbox.insert(tk.END, display_text)
+
+        except Exception as e:
+            print(f"加载 MOD 列表失败: {e}")
+
+    def _refresh_mod_list(self):
+        """刷新 MOD 列表"""
+        self._load_mod_list()
+        messagebox.showinfo("提示", "MOD 列表已刷新")
+
+    def _clear_mod_list(self):
+        """清空 MOD 列表"""
+        if messagebox.askyesno("确认", "确定要清空 MOD 列表吗?\n\n这不会删除翻译数据,只是清空侧边栏列表。"):
+            try:
+                self.mod_list_repo.clear_all()
+                self.mod_listbox.delete(0, tk.END)
+                messagebox.showinfo("成功", "MOD 列表已清空")
+            except Exception as e:
+                messagebox.showerror("错误", f"清空失败:\n{e}")
+
+    def _on_mod_select(self, event):
+        """MOD 列表选择事件"""
+        selection = self.mod_listbox.curselection()
+        if not selection:
+            return
+
+        idx = selection[0]
+        display_text = self.mod_listbox.get(idx)
+
+        # 提取 MOD 名称 (移除进度百分比)
+        mod_name = display_text.split(' (')[0].strip()
+
+        try:
+            # 从数据库获取完整信息
+            mods = self.mod_list_repo.get_all_mods()
+            selected_mod = None
+
+            for mod in mods:
+                if mod['mod_name'].startswith(mod_name):
+                    selected_mod = mod
+                    break
+
+            if selected_mod:
+                # 更新当前 MOD
+                self.current_mod_name = selected_mod['mod_name']
+                self.current_mod_path = selected_mod['mod_path']
+                self.mod_root_path = selected_mod['root_path']
+
+                # 更新界面
+                self.mod_path_var.set(selected_mod['mod_path'])
+                self.mod_name_label.config(text=selected_mod['mod_name'], foreground="black")
+
+                # 更新最后访问时间
+                self.mod_list_repo.update_last_accessed(selected_mod['mod_name'])
+
+                # 加载翻译数据
+                self._load_translations()
+                self._update_progress()
+
+                self.status_var.set(f"已切换到 MOD: {selected_mod['mod_name']}")
+
+        except Exception as e:
+            messagebox.showerror("错误", f"切换 MOD 失败:\n{e}")
+
+    def _show_mod_context_menu(self, event):
+        """显示右键菜单"""
+        # 选中右键点击的项
+        idx = self.mod_listbox.nearest(event.y)
+        self.mod_listbox.selection_clear(0, tk.END)
+        self.mod_listbox.selection_set(idx)
+        self.mod_listbox.activate(idx)
+
+        # 显示菜单
+        try:
+            self.mod_context_menu.tk_popup(event.x_root, event.y_root)
+        finally:
+            self.mod_context_menu.grab_release()
+
+    def _remove_selected_mod(self):
+        """移除选中的 MOD"""
+        selection = self.mod_listbox.curselection()
+        if not selection:
+            return
+
+        idx = selection[0]
+        display_text = self.mod_listbox.get(idx)
+        mod_name = display_text.split(' (')[0].strip()
+
+        if messagebox.askyesno("确认", f"确定要从列表中移除 '{mod_name}' 吗?\n\n这不会删除翻译数据。"):
+            try:
+                # 获取完整 MOD 名称
+                mods = self.mod_list_repo.get_all_mods()
+                for mod in mods:
+                    if mod['mod_name'].startswith(mod_name):
+                        self.mod_list_repo.remove_mod(mod['mod_name'])
+                        self.mod_listbox.delete(idx)
+                        messagebox.showinfo("成功", f"已移除 '{mod_name}'")
+                        break
+
+            except Exception as e:
+                messagebox.showerror("错误", f"移除失败:\n{e}")
 
     def _on_closing(self):
         """关闭窗口事件"""

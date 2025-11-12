@@ -88,6 +88,18 @@ class Database:
                 )
             """)
 
+            # MOD 列表表
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS mod_list (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    mod_name TEXT NOT NULL UNIQUE,
+                    mod_path TEXT NOT NULL,
+                    root_path TEXT,
+                    added_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    last_accessed TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+
             # 创建索引
             cursor.execute("""
                 CREATE INDEX IF NOT EXISTS idx_translations_mod_name
