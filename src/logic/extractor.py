@@ -188,3 +188,115 @@ class Extractor:
                 continue
 
         return entries
+
+    def scan_mods_folder(self, root_path: Path) -> List[Dict]:
+        """
+        扫描MOD管理文件夹,识别所有MOD
+
+        Args:
+            root_path: MOD管理文件夹根目录 (如 steam/steamapps/workshop/content/294100)
+
+        Returns:
+            List[Dict]: MOD信息列表,每项包含:
+                - info: ModInfo对象
+                - has_chinese: 是否有中文翻译
+                - chinese_complete: 中文翻译完成度估算(0-100)
+                - path: MOD路径
+        """
+        mods = []
+
+        if not root_path.exists() or not root_path.is_dir():
+            return mods
+
+        # 遍历所有子目录
+        for mod_dir in root_path.iterdir():
+            if not mod_dir.is_dir():
+                continue
+
+            try:
+                # 尝试扫描MOD
+                mod_info = self.scan_mod(mod_dir)
+
+                # 检查中文翻译状态
+                chinese_dir = mod_dir / "Languages" / "ChineseSimplified"
+                has_chinese = chinese_dir.exists()
+
+                # 估算翻译完成度
+                chinese_complete = 0
+                if has_chinese:
+                    chinese_complete = self._estimate_translation_completeness(
+                        mod_dir, "English", "ChineseSimplified"
+                    )
+
+                mods.append({
+                    'info': mod_info,
+                    'has_chinese': has_chinese,
+                    'chinese_complete': chinese_complete,
+                    'path': mod_dir
+                })
+
+            except (ModNotFoundError, ModInvalidStructureError):
+                # 跳过无效的MOD目录
+                continue
+            except Exception as e:
+                # 跳过其他异常
+                print(f"警告: 扫描MOD失败 {mod_dir.name}: {e}")
+                continue
+
+        return mods
+
+    def _estimate_translation_completeness(
+        self,
+        mod_path: Path,
+        source_lang: str,
+        target_lang: str
+    ) -> int:
+        """
+        估算翻译完成度
+
+        Args:
+            mod_path: MOD路径
+            source_lang: 源语言
+            target_lang: 目标语言
+
+        Returns:
+            int: 完成度百分比(0-100)
+        """
+        try:
+            source_dir = mod_path / "Languages" / source_lang
+            target_dir = mod_path / "Languages" / target_lang
+
+            if not source_dir.exists() or not target_dir.exists():
+                return 0
+
+            # 统计源语言文件数
+            source_files = set()
+            for subdir in ["DefInjected", "Keyed"]:
+                dir_path = source_dir / subdir
+                if dir_path.exists():
+                    files = self.file_storage.list_files(dir_path, "*.xml")
+                    source_files.update([f.relative_to(source_dir) for f in files])
+
+            if not source_files:
+                return 0
+
+            # 统计目标语言文件数
+            target_files = set()
+            for subdir in ["DefInjected", "Keyed"]:
+                dir_path = target_dir / subdir
+                if dir_path.exists():
+                    files = self.file_storage.list_files(dir_path, "*.xml")
+                    target_files.update([f.relative_to(target_dir) for f in files])
+
+            # 计算完成度
+            if not target_files:
+                return 0
+
+            # 简单估算: 已翻译文件数 / 源文件数
+            translated_count = len(source_files.intersection(target_files))
+            completeness = int((translated_count / len(source_files)) * 100)
+
+            return min(completeness, 100)
+
+        except Exception:
+            return 0

@@ -254,9 +254,154 @@ class RimworldTranslatorGUI:
 
     def _browse_mod_folder(self):
         """浏览选择 MOD 文件夹"""
-        folder = filedialog.askdirectory(title="选择 MOD 目录")
+        folder = filedialog.askdirectory(title="选择 MOD 目录或 MOD 管理根目录")
         if folder:
-            self.mod_path_var.set(folder)
+            folder_path = Path(folder)
+
+            # 检测是否为MOD管理根目录 (包含多个MOD子目录)
+            if self._is_mods_root_folder(folder_path):
+                # 显示MOD选择对话框
+                self._show_mod_selection_dialog(folder)
+            else:
+                # 单个MOD,直接设置路径
+                self.mod_path_var.set(folder)
+
+    def _is_mods_root_folder(self, folder_path: Path) -> bool:
+        """
+        判断是否为MOD管理根目录
+
+        规则: 如果包含3个以上子目录,且至少有2个子目录包含About/About.xml,则视为根目录
+        """
+        if not folder_path.is_dir():
+            return False
+
+        subdirs = [d for d in folder_path.iterdir() if d.is_dir()]
+        if len(subdirs) < 3:
+            return False
+
+        # 检查前5个子目录中有About/About.xml的数量
+        valid_mod_count = 0
+        for subdir in subdirs[:5]:
+            about_xml = subdir / "About" / "About.xml"
+            if about_xml.exists():
+                valid_mod_count += 1
+
+        return valid_mod_count >= 2
+
+    def _show_mod_selection_dialog(self, root_path: str):
+        """显示MOD选择对话框"""
+        dialog = tk.Toplevel(self.root)
+        dialog.title("选择 MOD")
+        dialog.geometry("900x600")
+        dialog.transient(self.root)
+        dialog.grab_set()
+
+        # 提示标签
+        ttk.Label(
+            dialog,
+            text="正在扫描MOD...",
+            font=("", 12)
+        ).pack(pady=20)
+
+        # 创建表格
+        table_frame = ttk.Frame(dialog)
+        table_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+
+        columns = ("name", "author", "has_chinese", "completeness")
+        tree = ttk.Treeview(
+            table_frame,
+            columns=columns,
+            show="headings",
+            selectmode="browse"
+        )
+
+        tree.heading("name", text="MOD 名称")
+        tree.heading("author", text="作者")
+        tree.heading("has_chinese", text="汉化状态")
+        tree.heading("completeness", text="完成度")
+
+        tree.column("name", width=350)
+        tree.column("author", width=200)
+        tree.column("has_chinese", width=100, anchor=tk.CENTER)
+        tree.column("completeness", width=100, anchor=tk.CENTER)
+
+        # 滚动条
+        vsb = ttk.Scrollbar(table_frame, orient="vertical", command=tree.yview)
+        tree.configure(yscrollcommand=vsb.set)
+
+        tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        vsb.pack(side=tk.RIGHT, fill=tk.Y)
+
+        # 按钮区
+        button_frame = ttk.Frame(dialog)
+        button_frame.pack(fill=tk.X, padx=10, pady=10)
+
+        selected_mod_path = [None]
+
+        def on_select():
+            selection = tree.selection()
+            if selection:
+                item = tree.item(selection[0])
+                mod_path = item['values'][4]  # 隐藏的路径列
+                selected_mod_path[0] = mod_path
+                dialog.destroy()
+
+        def on_double_click(event):
+            on_select()
+
+        tree.bind("<Double-1>", on_double_click)
+
+        ttk.Button(button_frame, text="选择", command=on_select).pack(side=tk.RIGHT, padx=5)
+        ttk.Button(button_frame, text="取消", command=dialog.destroy).pack(side=tk.RIGHT)
+
+        # 后台扫描MOD
+        def scan_thread():
+            try:
+                mods = self.service.scan_mods_folder(root_path)
+
+                def update_ui():
+                    # 清除提示
+                    for widget in dialog.winfo_children():
+                        if isinstance(widget, ttk.Label):
+                            widget.destroy()
+
+                    # 添加隐藏的路径列
+                    tree.column("completeness", width=100, anchor=tk.CENTER)
+
+                    # 填充数据
+                    for mod_data in mods:
+                        mod_info = mod_data['info']
+                        has_chinese = mod_data['has_chinese']
+                        completeness = mod_data['chinese_complete']
+
+                        status_text = "✓ 已汉化" if has_chinese else "✗ 未汉化"
+                        complete_text = f"{completeness}%" if has_chinese else "-"
+
+                        # values中包含隐藏的路径
+                        tree.insert("", tk.END, values=(
+                            mod_info.name,
+                            mod_info.author or "-",
+                            status_text,
+                            complete_text,
+                            str(mod_data['path'])  # 隐藏列
+                        ))
+
+                dialog.after(0, update_ui)
+
+            except Exception as e:
+                def show_error():
+                    messagebox.showerror("错误", f"扫描MOD失败:\n{e}")
+                    dialog.destroy()
+                dialog.after(0, show_error)
+
+        threading.Thread(target=scan_thread, daemon=True).start()
+
+        # 等待对话框关闭
+        self.root.wait_window(dialog)
+
+        # 设置选择的MOD路径
+        if selected_mod_path[0]:
+            self.mod_path_var.set(selected_mod_path[0])
 
     def _extract_mod(self):
         """提取 MOD 可翻译内容"""
@@ -550,6 +695,41 @@ class RimworldTranslatorGUI:
 
         ttk.Button(assist_frame, text="翻译", command=ai_translate).pack(side=tk.LEFT, padx=5)
 
+        # 百度翻译
+        ttk.Label(assist_frame, text="百度翻译:").pack(side=tk.LEFT, padx=(20, 0))
+
+        def baidu_translate():
+            """使用百度翻译"""
+            if 'baidu' not in self.batch_translator.providers:
+                messagebox.showwarning("警告", "百度翻译未配置或不可用\n\n请在设置中配置百度翻译 API")
+                return
+
+            provider = self.batch_translator.providers['baidu']
+
+            try:
+                # 显示加载状态
+                self.status_var.set("正在使用百度翻译...")
+                self.root.update()
+
+                # 翻译
+                result = provider.translate(entry.original_text, 'en', 'zh')
+
+                if result:
+                    # 将翻译结果填入译文框
+                    translation_text.delete(1.0, tk.END)
+                    translation_text.insert(1.0, result)
+                    self.status_var.set("百度翻译完成")
+                    messagebox.showinfo("百度翻译", "翻译完成")
+                else:
+                    self.status_var.set("翻译失败")
+                    messagebox.showerror("错误", "百度翻译失败,请检查配置")
+
+            except Exception as e:
+                self.status_var.set("翻译失败")
+                messagebox.showerror("错误", f"百度翻译失败:\n{e}")
+
+        ttk.Button(assist_frame, text="翻译", command=baidu_translate).pack(side=tk.LEFT, padx=5)
+
         # 译文
         ttk.Label(dialog, text="译文:").pack(anchor=tk.W, padx=10, pady=(10, 0))
         translation_text = scrolledtext.ScrolledText(dialog, height=8, wrap=tk.WORD)
@@ -833,16 +1013,33 @@ class RimworldTranslatorGUI:
             from .settings_dialog import SettingsDialog
             dialog = SettingsDialog(self.root, self.config)
 
-            # 设置对话框关闭后,刷新翻译引擎列表
+            # 设置对话框关闭后,重新初始化翻译器并刷新翻译引擎列表
             self.root.wait_window(dialog.dialog)
+            self._reinitialize_translator()
             self._refresh_provider_list()
 
         except Exception as e:
             messagebox.showerror("错误", f"打开设置对话框失败:\n{e}")
 
+    def _reinitialize_translator(self):
+        """重新初始化翻译器 - 使配置更改立即生效"""
+        try:
+            # 重新加载配置
+            self.config._load_config()
+
+            # 重新初始化批量翻译器
+            self.batch_translator = BatchTranslatorLogic(self.config, self.memory_logic)
+
+            # 更新状态栏
+            self.status_var.set("翻译引擎配置已更新")
+
+        except Exception as e:
+            print(f"重新初始化翻译器失败: {e}")
+            messagebox.showwarning("警告", f"翻译引擎重新加载失败:\n{e}\n请重启应用以应用新配置")
+
     def _refresh_provider_list(self):
         """刷新翻译引擎下拉列表"""
-        providers = self.config.get_available_providers()
+        providers = self.batch_translator.get_available_providers()
         self.provider_combo['values'] = providers
 
         # 如果当前选择的引擎不可用,选择第一个可用的

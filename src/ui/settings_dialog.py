@@ -132,28 +132,74 @@ class SettingsDialog:
         # 启用复选框
         self.baidu_enabled_var = tk.BooleanVar(value=baidu_config.get('enabled', False))
         ttk.Checkbutton(frame, text="启用百度翻译", variable=self.baidu_enabled_var).grid(
-            row=0, column=0, columnspan=2, sticky=tk.W, pady=5
+            row=0, column=0, columnspan=3, sticky=tk.W, pady=5
         )
 
-        # API Key
-        ttk.Label(frame, text="API Key:").grid(row=1, column=0, sticky=tk.W, pady=5)
+        # 帮助说明
+        help_label = ttk.Label(
+            frame,
+            text="获取密钥: 登录百度翻译开放平台 → 管理控制台 → 开发者信息",
+            foreground="blue",
+            cursor="hand2",
+            font=("", 9)
+        )
+        help_label.grid(row=1, column=0, columnspan=3, sticky=tk.W, pady=5)
+
+        def open_baidu_console(event):
+            import webbrowser
+            webbrowser.open("https://fanyi-api.baidu.com/manage/developer")
+
+        help_label.bind("<Button-1>", open_baidu_console)
+
+        # APP ID (API Key)
+        ttk.Label(frame, text="APP ID:").grid(row=2, column=0, sticky=tk.W, pady=5)
         self.baidu_api_key_var = tk.StringVar(value=baidu_config.get('api_key', ''))
-        ttk.Entry(frame, textvariable=self.baidu_api_key_var, width=50, show="*").grid(
-            row=1, column=1, sticky=(tk.W, tk.E), pady=5, padx=5
-        )
+        api_key_entry = ttk.Entry(frame, textvariable=self.baidu_api_key_var, width=40, show="*")
+        api_key_entry.grid(row=2, column=1, sticky=(tk.W, tk.E), pady=5, padx=5)
 
-        # Secret Key
-        ttk.Label(frame, text="Secret Key:").grid(row=2, column=0, sticky=tk.W, pady=5)
+        # 显示/隐藏按钮
+        self.baidu_api_show = [False]
+
+        def toggle_api_visibility():
+            if self.baidu_api_show[0]:
+                api_key_entry.config(show="*")
+                api_btn.config(text="👁")
+                self.baidu_api_show[0] = False
+            else:
+                api_key_entry.config(show="")
+                api_btn.config(text="🔒")
+                self.baidu_api_show[0] = True
+
+        api_btn = ttk.Button(frame, text="👁", width=3, command=toggle_api_visibility)
+        api_btn.grid(row=2, column=2, padx=2)
+
+        # 密钥 (Secret Key)
+        ttk.Label(frame, text="密钥:").grid(row=3, column=0, sticky=tk.W, pady=5)
         self.baidu_secret_key_var = tk.StringVar(value=baidu_config.get('secret_key', ''))
-        ttk.Entry(frame, textvariable=self.baidu_secret_key_var, width=50, show="*").grid(
-            row=2, column=1, sticky=(tk.W, tk.E), pady=5, padx=5
-        )
+        secret_key_entry = ttk.Entry(frame, textvariable=self.baidu_secret_key_var, width=40, show="*")
+        secret_key_entry.grid(row=3, column=1, sticky=(tk.W, tk.E), pady=5, padx=5)
 
-        # QPS Limit
-        ttk.Label(frame, text="QPS 限制:").grid(row=3, column=0, sticky=tk.W, pady=5)
+        # 显示/隐藏按钮
+        self.baidu_secret_show = [False]
+
+        def toggle_secret_visibility():
+            if self.baidu_secret_show[0]:
+                secret_key_entry.config(show="*")
+                secret_btn.config(text="👁")
+                self.baidu_secret_show[0] = False
+            else:
+                secret_key_entry.config(show="")
+                secret_btn.config(text="🔒")
+                self.baidu_secret_show[0] = True
+
+        secret_btn = ttk.Button(frame, text="👁", width=3, command=toggle_secret_visibility)
+        secret_btn.grid(row=3, column=2, padx=2)
+
+        # QPS 限制
+        ttk.Label(frame, text="QPS 限制:").grid(row=4, column=0, sticky=tk.W, pady=5)
         self.baidu_qps_var = tk.IntVar(value=baidu_config.get('qps_limit', 10))
-        ttk.Spinbox(frame, from_=1, to=100, textvariable=self.baidu_qps_var, width=48).grid(
-            row=3, column=1, sticky=(tk.W, tk.E), pady=5, padx=5
+        ttk.Spinbox(frame, from_=1, to=100, textvariable=self.baidu_qps_var, width=38).grid(
+            row=4, column=1, sticky=(tk.W, tk.E), pady=5, padx=5
         )
 
         frame.columnconfigure(1, weight=1)

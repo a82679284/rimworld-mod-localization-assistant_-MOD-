@@ -11,18 +11,20 @@ from .base import TranslationProvider
 class DeepSeekTranslator(TranslationProvider):
     """DeepSeek AI 翻译器"""
 
-    def __init__(self, config: Dict[str, any]):
+    def __init__(self, config: Dict[str, any], glossary_repo=None):
         """
         初始化 DeepSeek 翻译器
 
         Args:
             config: 配置字典,包含 api_key, base_url, model
+            glossary_repo: 术语库仓库(可选),用于提供术语参考
         """
         super().__init__(config)
         self.api_key = config.get('api_key', '')
         self.base_url = config.get('base_url', 'https://api.deepseek.com/v1')
         self.model = config.get('model', 'deepseek-chat')
         self.timeout = config.get('timeout', 30)
+        self.glossary_repo = glossary_repo
 
     def translate(
         self,
@@ -156,21 +158,63 @@ class DeepSeekTranslator(TranslationProvider):
         source_lang: str,
         target_lang: str
     ) -> str:
-        """构建翻译 prompt"""
+        """构建翻译 prompt,包含术语库参考"""
         lang_names = {
             'en': '英文',
             'zh': '简体中文'
         }
 
+        # 查询相关术语
+        glossary_hint = ""
+        if self.glossary_repo:
+            try:
+                words = text.split()
+                terms = []
+                seen_terms = set()
+
+                for word in words:
+                    # 跳过太短的词
+                    if len(word) < 3:
+                        continue
+
+                    # 移除标点符号
+                    clean_word = word.strip('.,!?;:()"\'')
+                    if not clean_word:
+                        continue
+
+                    # 查询术语库
+                    matches = self.glossary_repo.search_terms(clean_word)
+                    if matches:
+                        for match in matches[:2]:  # 每个词最多2个匹配
+                            term_key = (match.term_en, match.term_zh)
+                            if term_key not in seen_terms:
+                                seen_terms.add(term_key)
+                                terms.append(f"  - {match.term_en} → {match.term_zh}")
+
+                            # 限制总数
+                            if len(terms) >= 5:
+                                break
+
+                    if len(terms) >= 5:
+                        break
+
+                if terms:
+                    glossary_hint = "\n\n术语参考(优先使用):\n" + "\n".join(terms)
+
+            except Exception as e:
+                # 术语库查询失败不影响翻译
+                print(f"术语库查询失败: {e}")
+
         return f"""请将以下{lang_names.get(source_lang, source_lang)}游戏文本翻译成{lang_names.get(target_lang, target_lang)}:
 
-原文: {text}
+原文: {text}{glossary_hint}
 
 翻译要求:
-1. 保持游戏术语的准确性和一致性
-2. 语言简洁流畅,符合中文表达习惯
-3. 保留原文中的格式标记(如括号、引号等)
-4. 只返回翻译结果,不要添加解释
+1. **优先使用上述术语参考中的翻译**
+2. 保持游戏术语的准确性和一致性
+3. 语言简洁流畅,符合中文表达习惯
+4. 保留原文中的格式标记(如括号、引号等)
+5. 只返回翻译结果,不要添加解释
 
 翻译:"""
 

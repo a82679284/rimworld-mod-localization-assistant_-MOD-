@@ -32,6 +32,25 @@ class TranslationService:
         self.extractor = Extractor()
         self.translator = Translator()
 
+    def scan_mods_folder(self, root_path: str) -> List[Dict]:
+        """
+        扫描MOD管理文件夹,识别所有MOD
+
+        Args:
+            root_path: MOD管理文件夹根目录
+
+        Returns:
+            List[Dict]: MOD信息列表
+
+        Raises:
+            RimworldTranslatorError: 扫描失败
+        """
+        try:
+            path = Path(root_path)
+            return self.extractor.scan_mods_folder(path)
+        except Exception as e:
+            raise RimworldTranslatorError(f"扫描MOD文件夹失败: {e}") from e
+
     def extract_mod(
         self,
         mod_path: str,

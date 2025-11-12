@@ -28,15 +28,22 @@ class BaiduTranslator(TranslationProvider):
         if not self.is_available():
             return None
 
+        if not text or not text.strip():
+            return None
+
         try:
             # 百度API参数
             salt = str(random.randint(32768, 65536))
             sign = self._generate_sign(text, salt)
 
+            # 转换语言代码格式
+            from_lang = self._convert_lang_code(source_lang)
+            to_lang = self._convert_lang_code(target_lang)
+
             params = {
                 'q': text,
-                'from': 'en',
-                'to': 'zh',
+                'from': from_lang,
+                'to': to_lang,
                 'appid': self.api_key,
                 'salt': salt,
                 'sign': sign
@@ -46,8 +53,21 @@ class BaiduTranslator(TranslationProvider):
 
             if response.status_code == 200:
                 result = response.json()
-                if 'trans_result' in result:
+
+                # 检查错误码
+                if 'error_code' in result:
+                    error_code = result['error_code']
+                    error_msg = result.get('error_msg', '未知错误')
+                    print(f"百度翻译API错误 [{error_code}]: {error_msg}")
+                    return None
+
+                # 返回翻译结果
+                if 'trans_result' in result and len(result['trans_result']) > 0:
                     return result['trans_result'][0]['dst']
+
+            else:
+                print(f"百度翻译HTTP错误: {response.status_code}")
+
             return None
 
         except Exception as e:
@@ -68,9 +88,39 @@ class BaiduTranslator(TranslationProvider):
         return results
 
     def _generate_sign(self, query: str, salt: str) -> str:
-        """生成百度API签名"""
+        """
+        生成百度API签名
+
+        签名生成规则: MD5(appid+q+salt+密钥)
+        注意: q需要是UTF-8编码
+        """
         sign_str = f"{self.api_key}{query}{salt}{self.secret_key}"
         return hashlib.md5(sign_str.encode('utf-8')).hexdigest()
+
+    def _convert_lang_code(self, lang_code: str) -> str:
+        """
+        转换语言代码为百度翻译API格式
+
+        Args:
+            lang_code: 通用语言代码
+
+        Returns:
+            str: 百度翻译API语言代码
+        """
+        # 语言代码映射表
+        lang_map = {
+            'en': 'en',      # 英语
+            'zh': 'zh',      # 中文
+            'auto': 'auto',  # 自动检测
+            'jp': 'jp',      # 日语
+            'kor': 'kor',    # 韩语
+            'fra': 'fra',    # 法语
+            'spa': 'spa',    # 西班牙语
+            'de': 'de',      # 德语
+            'ru': 'ru',      # 俄语
+        }
+
+        return lang_map.get(lang_code.lower(), lang_code)
 
     def validate_config(self) -> bool:
         return (

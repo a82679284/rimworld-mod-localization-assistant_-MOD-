@@ -42,11 +42,21 @@ class BatchTranslatorLogic:
             'ollama': OllamaTranslator
         }
 
+        # 获取术语库仓库 (用于 DeepSeek)
+        glossary_repo = None
+        if self.translation_memory:
+            glossary_repo = self.translation_memory.glossary_repo
+
         for name, provider_class in provider_classes.items():
             if name in provider_config.get('providers', {}):
                 config_dict = provider_config['providers'][name]
                 try:
-                    provider = provider_class(config_dict)
+                    # DeepSeek 需要术语库支持
+                    if name == 'deepseek' and glossary_repo:
+                        provider = provider_class(config_dict, glossary_repo)
+                    else:
+                        provider = provider_class(config_dict)
+
                     if provider.is_available():
                         self.providers[name] = provider
                         print(f"✓ {name.capitalize()} 翻译器已加载")
