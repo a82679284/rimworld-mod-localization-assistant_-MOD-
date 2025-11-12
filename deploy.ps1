@@ -106,12 +106,13 @@ Write-Host ""
 Write-Host "Next Steps:" -ForegroundColor Yellow
 Write-Host "1. Edit config\translation_api.json to configure translation APIs" -ForegroundColor White
 Write-Host "2. Run the application:" -ForegroundColor White
-Write-Host "   - GUI mode (Recommended): python src\main.py --gui" -ForegroundColor Cyan
-Write-Host "   - CLI mode: python src\main.py --cli" -ForegroundColor White
+Write-Host "   - Quick start: .\start-gui.ps1" -ForegroundColor Cyan
+Write-Host "   - Or: python src\main.py" -ForegroundColor White
 Write-Host ""
 Write-Host "Features:" -ForegroundColor Yellow
 Write-Host "  - MOD extraction and translation" -ForegroundColor White
 Write-Host "  - AI-powered batch translation (DeepSeek/Baidu/Ollama)" -ForegroundColor White
+Write-Host "  - Multi-threaded translation (10-50x faster)" -ForegroundColor White
 Write-Host "  - Translation memory and glossary" -ForegroundColor White
 Write-Host "  - Auto-save and session management" -ForegroundColor White
 Write-Host ""
@@ -120,44 +121,18 @@ Write-Host ""
 
 # Ask user if they want to start the application
 Write-Host "==================================" -ForegroundColor Cyan
-$startApp = Read-Host "Do you want to start the application now? (y/n)"
+$startApp = Read-Host "Do you want to start the GUI application now? (y/n)"
 
 if ($startApp.Trim() -eq 'y' -or $startApp.Trim() -eq 'Y') {
     Write-Host ""
-    Write-Host "Select mode:" -ForegroundColor Yellow
-    Write-Host "1. GUI mode (Recommended)" -ForegroundColor Cyan
-    Write-Host "2. CLI mode" -ForegroundColor White
+    Write-Host "Starting GUI application..." -ForegroundColor Green
     Write-Host ""
-
-    $mode = Read-Host "Enter your choice (1 or 2)"
-    $mode = $mode.Trim()
-
-    Write-Host ""
-    if ($mode -eq '1') {
-        Write-Host "Starting GUI mode..." -ForegroundColor Green
-        Write-Host ""
-        & ".\venv\Scripts\python.exe" src\main.py --gui
-    }
-    elseif ($mode -eq '2') {
-        Write-Host "Starting CLI mode..." -ForegroundColor Green
-        Write-Host ""
-        & ".\venv\Scripts\python.exe" src\main.py --cli
-    }
-    else {
-        Write-Host "Invalid choice: '$mode'" -ForegroundColor Red
-        Write-Host "Please run manually:" -ForegroundColor Yellow
-        Write-Host "  .\start-gui.ps1  (Quick start GUI)" -ForegroundColor Cyan
-        Write-Host "  .\start-cli.ps1  (Quick start CLI)" -ForegroundColor Cyan
-    }
+    & ".\venv\Scripts\python.exe" src\main.py
 } else {
     Write-Host ""
     Write-Host "You can start the application later by running:" -ForegroundColor Yellow
-    Write-Host "  .\start-gui.ps1  (for GUI mode)" -ForegroundColor Cyan
-    Write-Host "  .\start-cli.ps1  (for CLI mode)" -ForegroundColor Cyan
-    Write-Host ""
-    Write-Host "Or manually:" -ForegroundColor Yellow
-    Write-Host "  python src\main.py --gui" -ForegroundColor White
-    Write-Host "  python src\main.py --cli" -ForegroundColor White
+    Write-Host "  .\start-gui.ps1  (Quick start - Recommended)" -ForegroundColor Cyan
+    Write-Host "  python src\main.py  (Manual start)" -ForegroundColor White
 }
 
 Write-Host ""
