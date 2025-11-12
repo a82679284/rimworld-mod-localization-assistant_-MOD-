@@ -29,7 +29,8 @@ class FileStorage:
             if not file_path.exists():
                 raise FileNotFoundError(f"文件不存在: {file_path}")
 
-            parser = etree.XMLParser(remove_blank_text=False, encoding='utf-8')
+            # 让 lxml 自动检测编码(支持 UTF-8 BOM、其他编码)
+            parser = etree.XMLParser(remove_blank_text=False)
             tree = etree.parse(str(file_path), parser)
             return tree.getroot()
 
